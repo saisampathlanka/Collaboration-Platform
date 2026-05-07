@@ -7,6 +7,7 @@ import "./App.css";
 function App() {
   const [notes, setNotes] = useState([]);
   const [editingNote, setEditingNote] = useState(null);
+  const [draft, setDraft] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [conflict, setConflict] = useState(null);
@@ -45,6 +46,8 @@ function App() {
   };
 
   const handleUpdate = async ({ title, content }) => {
+    if (!editingNote) return;
+
     try {
       setConflict(null);
       await api.updateNote(editingNote.id, {
@@ -53,6 +56,7 @@ function App() {
         version: editingNote.version,
       });
       setEditingNote(null);
+      setDraft(null);
       const data = await api.fetchNotes();
       setNotes(data);
     } catch (err) {
@@ -65,10 +69,6 @@ function App() {
         });
         const data = await api.fetchNotes();
         setNotes(data);
-        const latest = data.find((n) => n.id === err.noteId);
-        if (latest) {
-          setEditingNote(latest);
-        }
       } else {
         setError(err.message);
       }
@@ -85,9 +85,61 @@ function App() {
     }
   };
 
+  const startEdit = (note) => {
+    setEditingNote(note);
+    setDraft({ title: note.title, content: note.content });
+    setConflict(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingNote(null);
+    setDraft(null);
+    setConflict(null);
+  };
+
+  const retryWithLatest = async () => {
+    if (!draft) return;
+    const latest = notes.find((n) => n.id === conflict.noteId);
+    if (!latest) return;
+
+    try {
+      await api.updateNote(latest.id, {
+        title: draft.title,
+        content: draft.content,
+        version: latest.version,
+      });
+      setEditingNote(null);
+      setDraft(null);
+      setConflict(null);
+      const data = await api.fetchNotes();
+      setNotes(data);
+    } catch (err) {
+      if (err.status === 409) {
+        setConflict({
+          noteId: err.noteId,
+          clientVersion: err.clientVersion,
+          currentVersion: err.currentVersion,
+          message: err.message,
+        });
+      } else {
+        setError(err.message);
+      }
+    }
+  };
+
+  const reloadAndDiscard = () => {
+    const latest = notes.find((n) => n.id === conflict.noteId);
+    if (latest) {
+      setEditingNote(latest);
+      setDraft({ title: latest.title, content: latest.content });
+    }
+    setConflict(null);
+  };
+
   const dismissConflict = () => {
     setConflict(null);
     setEditingNote(null);
+    setDraft(null);
   };
 
   return (
@@ -96,25 +148,36 @@ function App() {
       {error && <div className="error">{error}</div>}
       {conflict && (
         <div className="conflict-banner">
-          <p>{conflict.message}</p>
-          <p>
+          <p className="conflict-message">{conflict.message}</p>
+          <p className="conflict-detail">
             Your version (v{conflict.clientVersion}) was stale. Current version
             is v{conflict.currentVersion}.
           </p>
-          <button onClick={dismissConflict}>Dismiss</button>
+          <div className="conflict-actions">
+            <button onClick={retryWithLatest} className="retry-btn">
+              Retry (keep your changes)
+            </button>
+            <button onClick={reloadAndDiscard} className="reload-btn">
+              Reload latest (discard your changes)
+            </button>
+            <button onClick={dismissConflict} className="dismiss-btn">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
       <NoteForm
-        note={editingNote}
+        note={draft ? { ...editingNote, title: draft.title, content: draft.content } : editingNote}
+        onFieldChange={draft ? setDraft : null}
         onSubmit={editingNote ? handleUpdate : handleCreate}
-        onCancel={editingNote ? () => setEditingNote(null) : null}
+        onCancel={cancelEdit}
       />
       {loading ? (
         <p>Loading...</p>
       ) : (
         <NoteList
           notes={notes}
-          onEdit={setEditingNote}
+          onEdit={startEdit}
           onDelete={handleDelete}
         />
       )}
