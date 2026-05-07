@@ -1,6 +1,6 @@
 ##PHASE 1 - Monolith Base
 
-Tech Stack: React, Node.js, Express, MySQL
+Tech Stack: React, Node.js, Express, PostgreSQL
 
 Splitting the problem:
 1. problem spec
@@ -46,7 +46,7 @@ DELETE /notes/:id - delete a note
 
 #### Implementation Decisions
 Backend: Keeping it layered - Controller (HTTP), Service (Business Logic), Repository (DB)
-DB Choice: MySQL
+DB Choice: PostgreSQL
 
 #### Critical Engineering Thinking
 - [] uuid > auto-incrementing id (breaking at scale)
@@ -68,4 +68,3 @@ DB Choice: MySQL
 - [] Database query time
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
