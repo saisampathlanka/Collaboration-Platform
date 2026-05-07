@@ -1,4 +1,4 @@
-const noteService = require('../services/noteService');
+const { NoteService, ConflictError } = require('../services/noteService');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -6,7 +6,7 @@ class NoteController {
   async create(req, res) {
     try {
       const { title, content } = req.body;
-      const note = await noteService.create({ title, content });
+      const note = await NoteService.create({ title, content });
       res.status(201).json(note);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -15,7 +15,7 @@ class NoteController {
 
   async findAll(req, res) {
     try {
-      const notes = await noteService.findAll();
+      const notes = await NoteService.findAll();
       res.json(notes);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -27,7 +27,7 @@ class NoteController {
       if (!UUID_REGEX.test(req.params.id)) {
         return res.status(400).json({ error: 'Invalid note ID format' });
       }
-      const note = await noteService.findById(req.params.id);
+      const note = await NoteService.findById(req.params.id);
       res.json(note);
     } catch (error) {
       if (error.message === 'Note not found') {
@@ -42,10 +42,18 @@ class NoteController {
       if (!UUID_REGEX.test(req.params.id)) {
         return res.status(400).json({ error: 'Invalid note ID format' });
       }
-      const { title, content } = req.body;
-      const note = await noteService.update(req.params.id, { title, content });
+      const { title, content, version } = req.body;
+      const note = await NoteService.update(req.params.id, { title, content, version });
       res.json(note);
     } catch (error) {
+      if (error instanceof ConflictError) {
+        return res.status(409).json({
+          error: error.message,
+          noteId: error.noteId,
+          clientVersion: error.clientVersion,
+          currentVersion: error.currentVersion,
+        });
+      }
       if (error.message === 'Note not found') {
         return res.status(404).json({ error: error.message });
       }
@@ -58,7 +66,7 @@ class NoteController {
       if (!UUID_REGEX.test(req.params.id)) {
         return res.status(400).json({ error: 'Invalid note ID format' });
       }
-      await noteService.delete(req.params.id);
+      await NoteService.delete(req.params.id);
       res.status(204).send();
     } catch (error) {
       if (error.message === 'Note not found') {
