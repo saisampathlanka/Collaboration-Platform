@@ -21,12 +21,12 @@
 
 | # | Requirement | Status | Endpoint(s) |
 |---|-------------|--------|-------------|
-| 1 | Create a new note | [ ] | `POST /notes` |
-| 2 | Edit an existing note | [ ] | `PUT /notes/:id` |
-| 3 | Delete a note | [ ] | `DELETE /notes/:id` |
-| 4 | View all notes | [ ] | `GET /notes` |
-| 5 | View a single note | [ ] | `GET /notes/:id` |
-| 6 | Data persistence across restarts | [ ] | Database |
+| 1 | Create a new note | [x] | `POST /notes` |
+| 2 | Edit an existing note | [x] | `PUT /notes/:id` |
+| 3 | Delete a note | [x] | `DELETE /notes/:id` |
+| 4 | View all notes | [x] | `GET /notes` |
+| 5 | View a single note | [x] | `GET /notes/:id` |
+| 6 | Data persistence across restarts | [x] | Database |
 
 ### 1.2 Non-Functional Requirements
 
@@ -69,12 +69,12 @@
 | `id` | `UUID` | `PRIMARY KEY`, `DEFAULT gen_random_uuid()` | Globally unique identifier |
 | `title` | `VARCHAR(255)` | `NOT NULL`, `DEFAULT 'Untitled'` | Note heading |
 | `content` | `TEXT` | `NOT NULL`, `DEFAULT ''` | Note body (supports large text) |
-| `created_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
-| `updated_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Last modification timestamp (auto-updated via trigger) |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT clock_timestamp()` | Creation timestamp (wall clock time) |
+| `updated_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT clock_timestamp()` | Last modification timestamp (auto-updated via trigger) |
 
 ### Trigger: `update_notes_updated_at`
 
-Automatically sets `updated_at = CURRENT_TIMESTAMP` before every `UPDATE` on the `notes` table.
+Automatically sets `updated_at = clock_timestamp()` before every `UPDATE` on the `notes` table. Uses `clock_timestamp()` (wall clock) instead of `CURRENT_TIMESTAMP` (transaction start) so that timestamps reflect actual execution time even within transactions.
 
 ### ERD
 
@@ -191,14 +191,14 @@ Automatically sets `updated_at = CURRENT_TIMESTAMP` before every `UPDATE` on the
 
 | Scenario | Current Behavior | Status |
 |----------|-----------------|--------|
-| Update a non-existent note | Returns `404 { "error": "Note not found" }` | [ ] Handled |
-| Delete the same note twice | Second delete returns `404` | [ ] Handled |
-| Create note with empty title | Defaults to `"Untitled"` | [ ] Handled |
-| Create note with empty content | Stored as `""` (valid) | [ ] Handled |
-| Create note with no body fields | Returns `400` | [ ] Handled |
-| Very large content (>1MB) | PostgreSQL `TEXT` handles up to 1GB; may add validation later | [ ] Deferred |
-| Invalid UUID format on `:id` | PostgreSQL returns error → `400` | [ ] Handled |
-| Concurrent duplicate deletes | Second request gets `404` | [ ] Handled |
+| Update a non-existent note | Returns `404 { "error": "Note not found" }` | [x] Handled |
+| Delete the same note twice | Second delete returns `404` | [x] Handled |
+| Create note with empty title | Defaults to `"Untitled"` | [x] Handled |
+| Create note with empty content | Stored as `""` (valid) | [x] Handled |
+| Create note with no body fields | Returns `400` | [x] Handled |
+| Very large content (>1MB) | Express limit raised to 10MB; PostgreSQL `TEXT` handles up to 1GB | [x] Handled |
+| Invalid UUID format on `:id` | Regex validation → `400 { "error": "Invalid note ID format" }` | [x] Handled |
+| Concurrent duplicate deletes | Service checks existence before delete → `404` | [x] Handled |
 
 ---
 
@@ -227,8 +227,31 @@ Automatically sets `updated_at = CURRENT_TIMESTAMP` before every `UPDATE` on the
 
 ### 8.3 Test Runner
 
-- **Tool**: TBD (e.g., `vitest` for frontend, `supertest` + `jest` for backend)
-- **DB**: Use a test database or transactional rollback per test
+- **Backend**: Jest + Supertest with transactional rollback per test (no test DB needed)
+- **Frontend**: Vitest + React Testing Library + jsdom
+- **DB isolation**: Each test wraps in a `BEGIN`/`ROLLBACK` transaction
+
+### 8.4 Results
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Backend — Unit (Service) | 12 | All passing |
+| Backend — Integration (API + DB) | 26 | All passing |
+| Frontend — Component | 12 | All passing |
+| **Total** | **50** | **All passing** |
+
+**Backend integration tests cover:**
+- CRUD lifecycle (create → read → update → delete → verify gone)
+- All edge cases (invalid UUID, missing fields, empty content, large content, special chars, unicode)
+- Partial update (title-only, content-only)
+- `updated_at` timestamp advances on update
+- Ordering by `created_at DESC`
+- Double-delete returns 404
+
+**Frontend component tests cover:**
+- NoteForm: create mode, edit mode, cancel button visibility
+- NoteItem: renders content, edit/delete handler calls, date formatting
+- NoteList: renders multiple notes, empty state message
 
 ---
 
