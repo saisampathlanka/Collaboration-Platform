@@ -159,7 +159,11 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
+      const current = { ...existing, version: 7 };
       noteRepository.findById.mockResolvedValue(existing);
+      noteRepository.updateWithVersion.mockResolvedValue(null);
+      noteRepository.findById.mockResolvedValueOnce(existing);
+      noteRepository.findById.mockResolvedValueOnce(current);
 
       await expect(
         NoteService.update('mock-id', { title: 'New', version: 3 })

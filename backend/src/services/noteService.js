@@ -34,11 +34,6 @@ class NoteService {
   }
 
   async update(id, { title, content, version }) {
-    const existing = await noteRepository.findById(id);
-    if (!existing) {
-      throw new Error('Note not found');
-    }
-
     if (version === undefined || version === null) {
       throw new Error('Version is required for updates');
     }
@@ -47,11 +42,9 @@ class NoteService {
       throw new Error('Invalid version number');
     }
 
-    if (version !== existing.version) {
-      console.log(
-        `OCC CONFLICT: note_id=${id} client_version=${version} current_version=${existing.version}`
-      );
-      throw new ConflictError(id, version, existing.version);
+    const existing = await noteRepository.findById(id);
+    if (!existing) {
+      throw new Error('Note not found');
     }
 
     const updated = await noteRepository.updateWithVersion(
