@@ -1,70 +1,73 @@
-##PHASE 1 - Monolith Base
+# Collab
 
-Tech Stack: React, Node.js, Express, PostgreSQL
+A collaborative notes platform built in phases, starting as a monolith and evolving toward real-time collaboration.
 
-Splitting the problem:
-1. problem spec
-2. high level design
-3. data model
-4. api design
-5. implementation decisions
-6. critical enginnering thinking
-7. edge cases
-8. testing
-9. measure
+## Quick Start
 
-### Problem Specification
-#### Functional Requirements
-- [] Create Note
-- [] Edit Note
-- [] Delete Note
-- [] View All Notes
-- [] Persist Data
+### Prerequisites
+- Node.js 18+
+- PostgreSQL
 
-Non Functional Requirements
-- [] Low latency (<200ms local)
-- [] No data loss
-- [] Simple to extend
+### Backend
+```bash
+cd backend
+cp .env.example .env   # edit with your PostgreSQL credentials
+pnpm install
+pnpm start
+```
 
-#### High level design
-Frontend -> Backend api (monolith) -> Database
+### Frontend
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
 
-#### Data Model
-notes:
-  - id (primary key) (uuid, not auto-incrementing)
-  - title
-  - content
-  - created_at
-  - updated_at
+## Architecture
 
-#### Api Design
-POST /notes - create a new note
-GET /notes - get all notes
-GET /notes/:id - get a note by id
-PUT /notes/:id - update an existing note
-DELETE /notes/:id - delete a note
+```
+┌──────────┐   HTTP/JSON   ┌──────────────────┐   SQL   ┌──────────────┐
+│  React   │ ◀────────────▶│  Express (Node)  │ ◀─────▶│  PostgreSQL  │
+│  (Vite)  │               │  Controller →    │         │              │
+│          │               │  Service → Repo  │         │              │
+└──────────┘               └──────────────────┘         └──────────────┘
+```
 
-#### Implementation Decisions
-Backend: Keeping it layered - Controller (HTTP), Service (Business Logic), Repository (DB)
-DB Choice: PostgreSQL
+## Project Structure
 
-#### Critical Engineering Thinking
-- [] uuid > auto-incrementing id (breaking at scale)
-- [] Full content overwrite. Issue: real 0 time collaboration conflicts. For now it is fine - but noting the limitations.
+```
+collab/
+├── backend/          # Express API (port 3000)
+│   └── src/
+│       ├── config/   # DB connection + table init
+│       ├── controllers/
+│       ├── services/
+│       ├── repositories/
+│       ├── routes/
+│       └── middleware/
+├── frontend/         # React SPA (Vite dev server)
+│   └── src/
+│       ├── components/
+│       └── services/
+├── PHASE1_CONTEXT.md # Detailed design spec for Phase 1
+└── README.md
+```
 
-#### Edge Cases
-- [] Updating non existent note
-- [] Deleting twice
-- [] Empty Content
-- [] Very large content
+## API Endpoints
 
-#### Testing
-- [] unit tests -> service logic
-- [] integration tests -> api endpoints + database
-- [] what to test -> create to fetch to update to delete lifecycle
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/notes` | Create a note |
+| `GET` | `/notes` | List all notes |
+| `GET` | `/notes/:id` | Get a note |
+| `PUT` | `/notes/:id` | Update a note |
+| `DELETE` | `/notes/:id` | Delete a note |
 
-#### Measure
-- [] Request time logging
-- [] Database query time
+## Phases
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **1** | Monolith — CRUD notes app with React + Express + PostgreSQL | In Progress |
+| **2** | Real-time collaboration (OT/CRDT, WebSockets) | Planned |
+
+See [PHASE1_CONTEXT.md](./PHASE1_CONTEXT.md) for the full design specification, data model, edge cases, and testing strategy for Phase 1.
