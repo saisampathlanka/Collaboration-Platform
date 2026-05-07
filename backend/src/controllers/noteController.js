@@ -1,5 +1,7 @@
 const noteService = require('../services/noteService');
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 class NoteController {
   async create(req, res) {
     try {
@@ -22,6 +24,9 @@ class NoteController {
 
   async findById(req, res) {
     try {
+      if (!UUID_REGEX.test(req.params.id)) {
+        return res.status(400).json({ error: 'Invalid note ID format' });
+      }
       const note = await noteService.findById(req.params.id);
       res.json(note);
     } catch (error) {
@@ -34,6 +39,9 @@ class NoteController {
 
   async update(req, res) {
     try {
+      if (!UUID_REGEX.test(req.params.id)) {
+        return res.status(400).json({ error: 'Invalid note ID format' });
+      }
       const { title, content } = req.body;
       const note = await noteService.update(req.params.id, { title, content });
       res.json(note);
@@ -47,6 +55,9 @@ class NoteController {
 
   async delete(req, res) {
     try {
+      if (!UUID_REGEX.test(req.params.id)) {
+        return res.status(400).json({ error: 'Invalid note ID format' });
+      }
       await noteService.delete(req.params.id);
       res.status(204).send();
     } catch (error) {

@@ -21,24 +21,26 @@ const initDb = async () => {
     // title/content: text fields with sensible defaults
     // created_at: records when the note was first created
     // updated_at: records when the note was created (trigger keeps this current on updates)
+    // clock_timestamp() gives actual wall clock time (not transaction start time)
     await client.query(`
       CREATE TABLE IF NOT EXISTS notes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
         content TEXT NOT NULL DEFAULT '',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp()
       )
     `);
 
     // Define a reusable function that sets updated_at to the current timestamp
     // This function will be called by a trigger before every UPDATE on the notes table
     // NEW refers to the row about to be written; we overwrite its updated_at column
+    // clock_timestamp() gives actual wall clock time (not transaction start time)
     await client.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
       BEGIN
-        NEW.updated_at = CURRENT_TIMESTAMP;
+        NEW.updated_at = clock_timestamp();
         RETURN NEW;
       END;
       $$ language 'plpgsql';
