@@ -50,12 +50,12 @@ function App() {
 
     try {
       setConflict(null);
-      await api.updateNote(editingNote.id, {
+      const updated = await api.updateNote(editingNote.id, {
         title,
         content,
         version: editingNote.version,
       });
-      setEditingNote(null);
+      setEditingNote(updated);
       setDraft(null);
       const data = await api.fetchNotes();
       setNotes(data);
@@ -103,12 +103,12 @@ function App() {
     if (!latest) return;
 
     try {
-      await api.updateNote(latest.id, {
+      const updated = await api.updateNote(latest.id, {
         title: draft.title,
         content: draft.content,
         version: latest.version,
       });
-      setEditingNote(null);
+      setEditingNote(updated);
       setDraft(null);
       setConflict(null);
       const data = await api.fetchNotes();
