@@ -39,39 +39,40 @@ pnpm dev
 collab/
 ├── backend/
 │   ├── src/
-│   │   ├── config/db.js       # PostgreSQL pool + table init
+│   │   ├── config/db.js       # PostgreSQL pool + table init (OCC: version column)
 │   │   ├── app.js             # Express app (testable export)
-│   │   ├── controllers/       # HTTP handlers
-│   │   ├── services/          # Business logic
-│   │   ├── repositories/      # SQL queries
+│   │   ├── controllers/       # HTTP handlers (OCC: 409 conflict)
+│   │   ├── services/          # Business logic (OCC: version validation)
+│   │   ├── repositories/      # SQL queries (OCC: version-aware UPDATE)
 │   │   ├── routes/            # Express routers
-│   │   └── middleware/        # Request logging
+│   │   └── middleware/        # Request + OCC logging
 │   ├── tests/
 │   │   ├── setup.js           # DB init + transactional rollback
-│   │   ├── unit/              # Service layer tests (mocked DB)
-│   │   └── integration/       # Full API + DB tests
+│   │   ├── unit/              # Service layer tests (mocked DB, OCC)
+│   │   └── integration/       # Full API + DB tests (OCC concurrency)
 │   ├── server.js              # Entrypoint (listens)
 │   ├── .env
 │   └── package.json
 ├── frontend/
 │   ├── src/
 │   │   ├── components/        # React components + tests
-│   │   ├── services/api.js    # Fetch API client
-│   │   ├── App.jsx
+│   │   ├── services/api.js    # Fetch API client (OCC: version + 409)
+│   │   ├── App.jsx            # Conflict banner + retry flow
 │   │   └── test/setup.js      # Vitest + jest-dom setup
 │   └── package.json
 ├── README.md
-└── PHASE1_CONTEXT.md          # Phase 1 design spec
+├── PHASE1_CONTEXT.md          # Phase 1 design spec (CRUD, data model, API)
+└── PHASE1.5_CONTEXT.md        # Phase 1.5 design spec (OCC, conflict detection)
 ```
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/notes` | Create a note |
-| `GET` | `/notes` | List all notes |
-| `GET` | `/notes/:id` | Get a note |
-| `PUT` | `/notes/:id` | Update a note |
+| `POST` | `/notes` | Create a note (version starts at 1) |
+| `GET` | `/notes` | List all notes (includes version) |
+| `GET` | `/notes/:id` | Get a note (includes version) |
+| `PUT` | `/notes/:id` | Update a note (requires version, increments on success) |
 | `DELETE` | `/notes/:id` | Delete a note |
 
 ## Phases
@@ -79,13 +80,17 @@ collab/
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **1** | Monolith — CRUD notes app with React + Express + PostgreSQL | Complete |
+| **1.5** | Optimistic Concurrency Control (version-based conflict detection) | Complete |
 | **2** | Real-time collaboration (OT/CRDT, WebSockets) | Planned |
 
 ## Testing
 
 ```bash
-cd backend && pnpm test   # 38 tests (Jest + Supertest)
+cd backend && pnpm test   # 51 tests (Jest + Supertest)
 cd frontend && pnpm test  # 12 tests (Vitest + React Testing Library)
 ```
 
-See [PHASE1_CONTEXT.md](./PHASE1_CONTEXT.md) for the full design specification, data model, edge cases, and testing strategy for Phase 1.
+## Documentation
+
+- [PHASE1_CONTEXT.md](./PHASE1_CONTEXT.md) — Phase 1 design spec (CRUD, data model, API, edge cases)
+- [PHASE1.5_CONTEXT.md](./PHASE1.5_CONTEXT.md) — Phase 1.5 design spec (OCC, conflict detection, version flow)

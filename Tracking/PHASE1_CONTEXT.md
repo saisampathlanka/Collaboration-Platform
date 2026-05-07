@@ -281,21 +281,74 @@ Automatically sets `updated_at = clock_timestamp()` before every `UPDATE` on the
 collab/
 ├── backend/
 │   ├── src/
-│   │   ├── config/db.js           # PostgreSQL pool + init
-│   │   ├── controllers/           # HTTP layer
-│   │   ├── services/              # Business logic
-│   │   ├── repositories/          # SQL queries
+│   │   ├── config/db.js           # PostgreSQL pool + init (includes version column + OCC migration)
+│   │   ├── app.js                 # Express app (testable export)
+│   │   ├── controllers/           # HTTP layer (409 conflict handling)
+│   │   ├── services/              # Business logic (OCC validation + ConflictError)
+│   │   ├── repositories/          # SQL queries (version-aware UPDATE)
 │   │   ├── routes/                # Express routers
 │   │   └── middleware/            # Request logging
-│   ├── server.js                  # App entrypoint
+│   ├── tests/
+│   │   ├── setup.js               # DB init + transactional rollback
+│   │   ├── unit/                  # Service layer tests (mocked DB)
+│   │   └── integration/           # Full API + DB tests (incl. OCC)
+│   ├── server.js                  # Entrypoint (listens)
 │   ├── .env
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/            # React components
-│   │   ├── services/api.js        # Fetch API client
-│   │   ├── App.jsx
+│   │   ├── components/            # React components + tests
+│   │   ├── services/api.js        # Fetch API client (version-aware, 409 handling)
+│   │   ├── App.jsx                # Conflict banner + version-aware updates
 │   │   └── main.jsx
 │   └── package.json
-└── README.md
+├── README.md
+└── PHASE1_CONTEXT.md
+```
+
+---
+
+## Phase 1.5 — Optimistic Concurrency Control (OCC)
+
+### What Changed
+
+**Database**: Added `version INTEGER NOT NULL DEFAULT 1` column to `notes` table.
+
+**Update Flow**:
+```
+Client GET /notes/:id  →  { id, title, content, version: 1 }
+Client PUT /notes/:id  →  { title, content, version: 1 }
+Server checks version  →  if matches: UPDATE version = version + 1
+                         if mismatch: 409 Conflict
+```
+
+**Conflict Response**:
+```json
+{
+  "error": "Note has been modified by another client",
+  "noteId": "...",
+  "clientVersion": 1,
+  "currentVersion": 2
+}
+```
+
+**Frontend Behavior**: On 409, shows conflict banner, refreshes latest note state, allows retry with correct version.
+
+### OCC Test Coverage
+
+| Test Case | Status |
+|-----------|--------|
+| Concurrent update conflict (Client A + Client B) | Passing |
+| DB state unchanged after conflict | Passing |
+| Version increments correctly across updates | Passing |
+| Retry succeeds after resolving conflict | Passing |
+| Stale version far behind current | Passing |
+| Missing version → 400 | Passing |
+| Invalid version (string, zero, negative, float) → 400 | Passing |
+
+### Logging
+
+```
+OCC UPDATE: note_id=<uuid> version 1 -> 2
+OCC CONFLICT: note_id=<uuid> client_version=1 current_version=2
 ```
