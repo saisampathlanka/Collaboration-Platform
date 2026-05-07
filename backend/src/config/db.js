@@ -27,9 +27,15 @@ const initDb = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
         content TEXT NOT NULL DEFAULT '',
+        version INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp()
       )
+    `);
+
+    // Add version column to existing tables (idempotent migration)
+    await client.query(`
+      ALTER TABLE notes ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1
     `);
 
     // Define a reusable function that sets updated_at to the current timestamp

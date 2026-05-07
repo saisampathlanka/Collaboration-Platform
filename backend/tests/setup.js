@@ -1,7 +1,6 @@
 const { initDb, pool } = require('../src/config/db');
 
 beforeAll(async () => {
-  // Drop and recreate to ensure latest schema (clock_timestamp defaults)
   const client = await pool.connect();
   try {
     await client.query('DROP TABLE IF EXISTS notes CASCADE');
@@ -10,6 +9,7 @@ beforeAll(async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
         content TEXT NOT NULL DEFAULT '',
+        version INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp()
       )

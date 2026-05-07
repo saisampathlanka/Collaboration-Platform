@@ -1,5 +1,15 @@
 const noteRepository = require('../repositories/noteRepository');
 
+class ConflictError extends Error {
+  constructor(noteId, clientVersion, currentVersion) {
+    super('Note has been modified by another client');
+    this.name = 'ConflictError';
+    this.noteId = noteId;
+    this.clientVersion = clientVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
 class NoteService {
   async create({ title, content }) {
     if (!title && !content) {
@@ -23,15 +33,48 @@ class NoteService {
     return note;
   }
 
-  async update(id, { title, content }) {
+  async update(id, { title, content, version }) {
     const existing = await noteRepository.findById(id);
     if (!existing) {
       throw new Error('Note not found');
     }
-    return await noteRepository.update(id, {
-      title: title !== undefined ? title : existing.title,
-      content: content !== undefined ? content : existing.content,
-    });
+
+    if (version === undefined || version === null) {
+      throw new Error('Version is required for updates');
+    }
+
+    if (typeof version !== 'number' || version < 1 || !Number.isInteger(version)) {
+      throw new Error('Invalid version number');
+    }
+
+    if (version !== existing.version) {
+      console.log(
+        `OCC CONFLICT: note_id=${id} client_version=${version} current_version=${existing.version}`
+      );
+      throw new ConflictError(id, version, existing.version);
+    }
+
+    const updated = await noteRepository.updateWithVersion(
+      id,
+      {
+        title: title !== undefined ? title : existing.title,
+        content: content !== undefined ? content : existing.content,
+      },
+      version
+    );
+
+    if (!updated) {
+      const current = await noteRepository.findById(id);
+      console.log(
+        `OCC CONFLICT: note_id=${id} client_version=${version} current_version=${current?.version}`
+      );
+      throw new ConflictError(id, version, current?.version);
+    }
+
+    console.log(
+      `OCC UPDATE: note_id=${id} version ${version} -> ${updated.version}`
+    );
+    return updated;
   }
 
   async delete(id) {
@@ -43,4 +86,4 @@ class NoteService {
   }
 }
 
-module.exports = new NoteService();
+module.exports = { NoteService: new NoteService(), ConflictError };
