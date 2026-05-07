@@ -120,3 +120,30 @@
   color: #999;
   padding: 2rem;
 }
+
+.conflict-banner {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.conflict-banner p {
+  margin: 0 0 0.5rem 0;
+}
+
+.conflict-banner p:last-of-type {
+  margin-bottom: 0.75rem;
+}
+
+.conflict-banner button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #92400e;
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import NoteForm from "./components/NoteForm";
 import NoteList from "./components/NoteList";
 import * as api from "./services/api";
@@ -8,29 +8,37 @@ function App() {
   const [notes, setNotes] = useState([]);
   const [editingNote, setEditingNote] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const loadNotes = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await api.fetchNotes();
-      setNotes(data);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [conflict, setConflict] = useState(null);
 
   useEffect(() => {
-    loadNotes();
-  }, [loadNotes]);
+    let cancelled = false;
+
+    api
+      .fetchNotes()
+      .then((data) => {
+        if (!cancelled) {
+          setNotes(data);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreate = async ({ title, content }) => {
     try {
       await api.createNote({ title, content });
-      await loadNotes();
+      const data = await api.fetchNotes();
+      setNotes(data);
     } catch (err) {
       setError(err.message);
     }
@@ -38,27 +46,64 @@ function App() {
 
   const handleUpdate = async ({ title, content }) => {
     try {
-      await api.updateNote(editingNote.id, { title, content });
+      setConflict(null);
+      await api.updateNote(editingNote.id, {
+        title,
+        content,
+        version: editingNote.version,
+      });
       setEditingNote(null);
-      await loadNotes();
+      const data = await api.fetchNotes();
+      setNotes(data);
     } catch (err) {
-      setError(err.message);
+      if (err.status === 409) {
+        setConflict({
+          noteId: err.noteId,
+          clientVersion: err.clientVersion,
+          currentVersion: err.currentVersion,
+          message: err.message,
+        });
+        const data = await api.fetchNotes();
+        setNotes(data);
+        const latest = data.find((n) => n.id === err.noteId);
+        if (latest) {
+          setEditingNote(latest);
+        }
+      } else {
+        setError(err.message);
+      }
     }
   };
 
   const handleDelete = async (id) => {
     try {
       await api.deleteNote(id);
-      await loadNotes();
+      const data = await api.fetchNotes();
+      setNotes(data);
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const dismissConflict = () => {
+    setConflict(null);
+    setEditingNote(null);
   };
 
   return (
     <div className="app">
       <h1>Notes</h1>
       {error && <div className="error">{error}</div>}
+      {conflict && (
+        <div className="conflict-banner">
+          <p>{conflict.message}</p>
+          <p>
+            Your version (v{conflict.clientVersion}) was stale. Current version
+            is v{conflict.currentVersion}.
+          </p>
+          <button onClick={dismissConflict}>Dismiss</button>
+        </div>
+      )}
       <NoteForm
         note={editingNote}
         onSubmit={editingNote ? handleUpdate : handleCreate}
