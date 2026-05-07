@@ -37,20 +37,31 @@ pnpm dev
 
 ```
 collab/
-├── backend/          # Express API (port 3000)
-│   └── src/
-│       ├── config/   # DB connection + table init
-│       ├── controllers/
-│       ├── services/
-│       ├── repositories/
-│       ├── routes/
-│       └── middleware/
-├── frontend/         # React SPA (Vite dev server)
-│   └── src/
-│       ├── components/
-│       └── services/
-├── PHASE1_CONTEXT.md # Detailed design spec for Phase 1
-└── README.md
+├── backend/
+│   ├── src/
+│   │   ├── config/db.js       # PostgreSQL pool + table init
+│   │   ├── app.js             # Express app (testable export)
+│   │   ├── controllers/       # HTTP handlers
+│   │   ├── services/          # Business logic
+│   │   ├── repositories/      # SQL queries
+│   │   ├── routes/            # Express routers
+│   │   └── middleware/        # Request logging
+│   ├── tests/
+│   │   ├── setup.js           # DB init + transactional rollback
+│   │   ├── unit/              # Service layer tests (mocked DB)
+│   │   └── integration/       # Full API + DB tests
+│   ├── server.js              # Entrypoint (listens)
+│   ├── .env
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # React components + tests
+│   │   ├── services/api.js    # Fetch API client
+│   │   ├── App.jsx
+│   │   └── test/setup.js      # Vitest + jest-dom setup
+│   └── package.json
+├── README.md
+└── PHASE1_CONTEXT.md          # Phase 1 design spec
 ```
 
 ## API Endpoints
@@ -67,7 +78,14 @@ collab/
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| **1** | Monolith — CRUD notes app with React + Express + PostgreSQL | In Progress |
+| **1** | Monolith — CRUD notes app with React + Express + PostgreSQL | Complete |
 | **2** | Real-time collaboration (OT/CRDT, WebSockets) | Planned |
+
+## Testing
+
+```bash
+cd backend && pnpm test   # 38 tests (Jest + Supertest)
+cd frontend && pnpm test  # 12 tests (Vitest + React Testing Library)
+```
 
 See [PHASE1_CONTEXT.md](./PHASE1_CONTEXT.md) for the full design specification, data model, edge cases, and testing strategy for Phase 1.
