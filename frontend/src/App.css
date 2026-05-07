@@ -130,20 +130,43 @@
   margin-bottom: 1rem;
 }
 
-.conflict-banner p {
+.conflict-message {
   margin: 0 0 0.5rem 0;
+  font-weight: 600;
 }
 
-.conflict-banner p:last-of-type {
-  margin-bottom: 0.75rem;
+.conflict-detail {
+  margin: 0 0 1rem 0;
 }
 
-.conflict-banner button {
-  padding: 0.4rem 0.8rem;
+.conflict-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.conflict-actions button {
+  padding: 0.5rem 1rem;
   border: 1px solid #f59e0b;
   border-radius: 4px;
   background: white;
   cursor: pointer;
   font-size: 0.85rem;
   color: #92400e;
+}
+
+.retry-btn {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.reload-btn {
+  background: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.dismiss-btn {
+  color: #666;
 }

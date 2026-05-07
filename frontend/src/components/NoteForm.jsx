@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-function NoteForm({ note, onSubmit, onCancel }) {
+function NoteForm({ note, onFieldChange, onSubmit, onCancel }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
@@ -14,10 +14,26 @@ function NoteForm({ note, onSubmit, onCancel }) {
     }
   }, [note]);
 
+  const handleTitleChange = (e) => {
+    const value = e.target.value;
+    setTitle(value);
+    if (onFieldChange) {
+      onFieldChange((prev) => ({ ...prev, title: value }));
+    }
+  };
+
+  const handleContentChange = (e) => {
+    const value = e.target.value;
+    setContent(value);
+    if (onFieldChange) {
+      onFieldChange((prev) => ({ ...prev, content: value }));
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({ title, content });
-    if (!note) {
+    if (!note && !onFieldChange) {
       setTitle('');
       setContent('');
     }
@@ -29,13 +45,13 @@ function NoteForm({ note, onSubmit, onCancel }) {
         type="text"
         placeholder="Title"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={handleTitleChange}
         required
       />
       <textarea
         placeholder="Content"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={handleContentChange}
         rows={5}
       />
       <div className="form-actions">
