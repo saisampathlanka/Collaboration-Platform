@@ -1,7 +1,7 @@
-function NoteItem({ note, onEdit, onDelete }) {
+function NoteItem({ note, onView, onEdit, onDelete }) {
   return (
     <div className="note-item">
-      <div className="note-content">
+      <div className="note-content" onClick={() => onView(note)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView(note)}>
         <h3>{note.title}</h3>
         <p>{note.content}</p>
         <span className="note-date">

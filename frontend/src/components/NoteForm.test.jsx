@@ -19,7 +19,7 @@ describe('NoteForm', () => {
     expect(screen.getByRole('button', { name: /update/i })).toBeInTheDocument();
   });
 
-  it('shows cancel button only in edit mode', () => {
+  it('shows cancel button only when there are unsaved changes', () => {
     const { rerender } = render(<NoteForm onSubmit={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
 
@@ -28,9 +28,33 @@ describe('NoteForm', () => {
         note={{ id: '1', title: 'Test', content: '' }}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
+        hasChanges={true}
       />
     );
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+  });
+
+  it('hides cancel button when editing with no unsaved changes', () => {
+    render(
+      <NoteForm
+        note={{ id: '1', title: 'Test', content: '' }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        hasChanges={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+  });
+
+  it('renders read-only view mode', () => {
+    const note = { id: '1', title: 'View Title', content: 'View content' };
+    render(<NoteForm note={note} readOnly={true} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByText('View Title')).toBeInTheDocument();
+    expect(screen.getByText('View content')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
   });
 
   it('calls onSubmit with form data on submit', () => {

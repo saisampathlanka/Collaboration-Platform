@@ -115,6 +115,42 @@
   margin-bottom: 1rem;
 }
 
+.success {
+  background: #dcfce7;
+  color: #16a34a;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.note-content {
+  cursor: pointer;
+}
+
+.note-view {
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+}
+
+.view-title {
+  margin: 0 0 1rem 0;
+  color: #1a1a1a;
+  font-size: 1.25rem;
+}
+
+.view-content {
+  margin: 0 0 1.5rem 0;
+  color: #444;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
 .empty-message {
   text-align: center;
   color: #999;
@@ -169,4 +205,88 @@
 
 .dismiss-btn {
   color: #666;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.logout-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #dc2626;
+}
+
+.auth-page {
+  max-width: 400px;
+  margin: 4rem auto;
+  text-align: center;
+}
+
+.auth-page h1 {
+  margin-bottom: 2rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.auth-form input {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.auth-form button {
+  padding: 0.75rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.auth-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-switch {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  padding: 0;
 }
