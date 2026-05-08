@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-function NoteForm({ note, onFieldChange, onSubmit, onCancel }) {
+function NoteForm({ note, onFieldChange, onSubmit, onCancel, hasChanges, readOnly }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
@@ -39,6 +39,23 @@ function NoteForm({ note, onFieldChange, onSubmit, onCancel }) {
     }
   };
 
+  if (readOnly) {
+    return (
+      <div className="note-form note-view">
+        <h2 className="view-title">{note?.title || ''}</h2>
+        <p className="view-content">{note?.content || ''}</p>
+        <div className="form-actions">
+          <button type="button" onClick={onSubmit}>Edit</button>
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="cancel-btn">
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="note-form">
       <input
@@ -56,8 +73,12 @@ function NoteForm({ note, onFieldChange, onSubmit, onCancel }) {
       />
       <div className="form-actions">
         <button type="submit">{note ? 'Update' : 'Create'}</button>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="cancel-btn">
+        {onCancel && hasChanges && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="cancel-btn"
+          >
             Cancel
           </button>
         )}

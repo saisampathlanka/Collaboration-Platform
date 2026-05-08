@@ -1,6 +1,6 @@
 import NoteItem from './NoteItem';
 
-function NoteList({ notes, onEdit, onDelete }) {
+function NoteList({ notes, onView, onEdit, onDelete }) {
   if (notes.length === 0) {
     return <p className="empty-message">No notes yet. Create one above!</p>;
   }
@@ -11,6 +11,7 @@ function NoteList({ notes, onEdit, onDelete }) {
         <NoteItem
           key={note.id}
           note={note}
+          onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
         />

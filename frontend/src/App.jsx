@@ -1,18 +1,27 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "./context/AuthContext";
 import NoteForm from "./components/NoteForm";
 import NoteList from "./components/NoteList";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import * as api from "./services/api";
 import "./App.css";
 
 function App() {
+  const { user, loading, logout } = useAuth();
+  const [authPage, setAuthPage] = useState("login");
   const [notes, setNotes] = useState([]);
+  const [viewingNote, setViewingNote] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(null);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [conflict, setConflict] = useState(null);
 
   useEffect(() => {
+    if (!user) return;
+
     let cancelled = false;
 
     api
@@ -27,13 +36,29 @@ function App() {
         if (!cancelled) setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setNotesLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
+
+  if (loading) {
+    return <div className="app"><p>Loading...</p></div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="app">
+        {authPage === "login" ? (
+          <LoginPage onSwitch={() => setAuthPage("signup")} />
+        ) : (
+          <SignupPage onSwitch={() => setAuthPage("login")} />
+        )}
+      </div>
+    );
+  }
 
   const handleCreate = async ({ title, content }) => {
     try {
@@ -50,6 +75,7 @@ function App() {
 
     try {
       setConflict(null);
+      setError(null);
       const updated = await api.updateNote(editingNote.id, {
         title,
         content,
@@ -59,6 +85,8 @@ function App() {
       setDraft(null);
       const data = await api.fetchNotes();
       setNotes(data);
+      setSuccess('Note saved!');
+      setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
       if (err.status === 409) {
         setConflict({
@@ -78,6 +106,15 @@ function App() {
   const handleDelete = async (id) => {
     try {
       await api.deleteNote(id);
+      if (editingNote && editingNote.id === id) {
+        setEditingNote(null);
+        setDraft(null);
+        setConflict(null);
+        setSuccess(null);
+      }
+      if (viewingNote && viewingNote.id === id) {
+        setViewingNote(null);
+      }
       const data = await api.fetchNotes();
       setNotes(data);
     } catch (err) {
@@ -85,16 +122,36 @@ function App() {
     }
   };
 
+  const startView = (note) => {
+    setViewingNote(note);
+    setEditingNote(null);
+    setDraft(null);
+    setConflict(null);
+    setSuccess(null);
+  };
+
   const startEdit = (note) => {
+    setViewingNote(null);
     setEditingNote(note);
     setDraft({ title: note.title, content: note.content });
     setConflict(null);
+    setSuccess(null);
+  };
+
+  const startEditFromView = () => {
+    if (!viewingNote) return;
+    startEdit(viewingNote);
+  };
+
+  const closeView = () => {
+    setViewingNote(null);
   };
 
   const cancelEdit = () => {
     setEditingNote(null);
     setDraft(null);
     setConflict(null);
+    setSuccess(null);
   };
 
   const retryWithLatest = async () => {
@@ -142,10 +199,21 @@ function App() {
     setDraft(null);
   };
 
+  const hasChanges = editingNote && draft && (draft.title !== editingNote.title || draft.content !== editingNote.content);
+
   return (
     <div className="app">
-      <h1>Notes</h1>
+      <header className="app-header">
+        <h1>Notes</h1>
+        <div className="user-info">
+          <span>{user.email}</span>
+          <button onClick={logout} className="logout-btn">
+            Logout
+          </button>
+        </div>
+      </header>
       {error && <div className="error">{error}</div>}
+      {success && <div className="success">{success}</div>}
       {conflict && (
         <div className="conflict-banner">
           <p className="conflict-message">{conflict.message}</p>
@@ -166,17 +234,28 @@ function App() {
           </div>
         </div>
       )}
-      <NoteForm
-        note={draft ? { ...editingNote, title: draft.title, content: draft.content } : editingNote}
-        onFieldChange={draft ? setDraft : null}
-        onSubmit={editingNote ? handleUpdate : handleCreate}
-        onCancel={cancelEdit}
-      />
-      {loading ? (
+      {viewingNote && !editingNote ? (
+        <NoteForm
+          note={viewingNote}
+          readOnly={true}
+          onSubmit={startEditFromView}
+          onCancel={closeView}
+        />
+      ) : (
+        <NoteForm
+          note={draft ? { ...editingNote, title: draft.title, content: draft.content } : editingNote}
+          onFieldChange={editingNote ? setDraft : null}
+          onSubmit={editingNote ? handleUpdate : handleCreate}
+          onCancel={editingNote ? cancelEdit : null}
+          hasChanges={hasChanges}
+        />
+      )}
+      {notesLoading ? (
         <p>Loading...</p>
       ) : (
         <NoteList
           notes={notes}
+          onView={startView}
           onEdit={startEdit}
           onDelete={handleDelete}
         />
