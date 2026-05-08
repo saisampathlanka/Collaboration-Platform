@@ -11,29 +11,30 @@ class ConflictError extends Error {
 }
 
 class NoteService {
-  async create({ title, content }) {
+  async create({ title, content, userId }) {
     if (!title && !content) {
       throw new Error('Title or content is required');
     }
     return await noteRepository.create({
       title: title || 'Untitled',
       content: content || '',
+      userId,
     });
   }
 
-  async findAll() {
-    return await noteRepository.findAll();
+  async findAll(userId) {
+    return await noteRepository.findAllByUserId(userId);
   }
 
-  async findById(id) {
-    const note = await noteRepository.findById(id);
+  async findById(id, userId) {
+    const note = await noteRepository.findByIdAndUserId(id, userId);
     if (!note) {
       throw new Error('Note not found');
     }
     return note;
   }
 
-  async update(id, { title, content, version }) {
+  async update(id, { title, content, version }, userId) {
     if (version === undefined || version === null) {
       throw new Error('Version is required for updates');
     }
@@ -42,7 +43,7 @@ class NoteService {
       throw new Error('Invalid version number');
     }
 
-    const existing = await noteRepository.findById(id);
+    const existing = await noteRepository.findByIdAndUserId(id, userId);
     if (!existing) {
       throw new Error('Note not found');
     }
@@ -57,7 +58,7 @@ class NoteService {
     );
 
     if (!updated) {
-      const current = await noteRepository.findById(id);
+      const current = await noteRepository.findByIdAndUserId(id, userId);
       console.log(
         `OCC CONFLICT: note_id=${id} client_version=${version} current_version=${current?.version}`
       );
@@ -70,12 +71,12 @@ class NoteService {
     return updated;
   }
 
-  async delete(id) {
-    const existing = await noteRepository.findById(id);
+  async delete(id, userId) {
+    const existing = await noteRepository.findByIdAndUserId(id, userId);
     if (!existing) {
       throw new Error('Note not found');
     }
-    return await noteRepository.delete(id);
+    return await noteRepository.deleteByIdAndUserId(id, userId);
   }
 }
 

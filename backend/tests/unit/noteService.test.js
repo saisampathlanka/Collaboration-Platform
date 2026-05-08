@@ -9,19 +9,22 @@ describe('NoteService', () => {
   });
 
   describe('create', () => {
+    const testUserId = 'test-user-id';
+
     it('creates a note with title and content', async () => {
       const input = { title: 'Test', content: 'Body' };
       noteRepository.create.mockResolvedValue({
         id: 'mock-uuid',
         ...input,
+        user_id: testUserId,
         version: 1,
         created_at: new Date(),
         updated_at: new Date(),
       });
 
-      const result = await NoteService.create(input);
+      const result = await NoteService.create({ ...input, userId: testUserId });
 
-      expect(noteRepository.create).toHaveBeenCalledWith(input);
+      expect(noteRepository.create).toHaveBeenCalledWith({ ...input, userId: testUserId });
       expect(result.title).toBe('Test');
       expect(result.id).toBe('mock-uuid');
     });
@@ -31,16 +34,18 @@ describe('NoteService', () => {
         id: 'mock-uuid',
         title: 'Untitled',
         content: 'Body',
+        user_id: testUserId,
         version: 1,
         created_at: new Date(),
         updated_at: new Date(),
       });
 
-      await NoteService.create({ content: 'Body' });
+      await NoteService.create({ content: 'Body', userId: testUserId });
 
       expect(noteRepository.create).toHaveBeenCalledWith({
         title: 'Untitled',
         content: 'Body',
+        userId: testUserId,
       });
     });
 
@@ -49,21 +54,23 @@ describe('NoteService', () => {
         id: 'mock-uuid',
         title: 'Test',
         content: '',
+        user_id: testUserId,
         version: 1,
         created_at: new Date(),
         updated_at: new Date(),
       });
 
-      await NoteService.create({ title: 'Test' });
+      await NoteService.create({ title: 'Test', userId: testUserId });
 
       expect(noteRepository.create).toHaveBeenCalledWith({
         title: 'Test',
         content: '',
+        userId: testUserId,
       });
     });
 
     it('throws when both title and content are missing', async () => {
-      await expect(NoteService.create({})).rejects.toThrow(
+      await expect(NoteService.create({ userId: testUserId })).rejects.toThrow(
         'Title or content is required'
       );
       expect(noteRepository.create).not.toHaveBeenCalled();
@@ -76,20 +83,21 @@ describe('NoteService', () => {
         { id: '1', title: 'A', content: '', version: 1, created_at: new Date(), updated_at: new Date() },
         { id: '2', title: 'B', content: '', version: 1, created_at: new Date(), updated_at: new Date() },
       ];
-      noteRepository.findAll.mockResolvedValue(mockNotes);
+      noteRepository.findAllByUserId.mockResolvedValue(mockNotes);
 
-      const result = await NoteService.findAll();
+      const result = await NoteService.findAll('user-id');
 
       expect(result).toHaveLength(2);
-      expect(noteRepository.findAll).toHaveBeenCalledTimes(1);
+      expect(noteRepository.findAllByUserId).toHaveBeenCalledWith('user-id');
     });
 
     it('returns empty array when no notes exist', async () => {
-      noteRepository.findAll.mockResolvedValue([]);
+      noteRepository.findAllByUserId.mockResolvedValue([]);
 
-      const result = await NoteService.findAll();
+      const result = await NoteService.findAll('user-id');
 
       expect(result).toEqual([]);
+      expect(noteRepository.findAllByUserId).toHaveBeenCalledWith('user-id');
     });
   });
 
@@ -103,17 +111,18 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      noteRepository.findById.mockResolvedValue(mockNote);
+      noteRepository.findByIdAndUserId.mockResolvedValue(mockNote);
 
-      const result = await NoteService.findById('mock-id');
+      const result = await NoteService.findById('mock-id', 'user-id');
 
       expect(result.id).toBe('mock-id');
+      expect(noteRepository.findByIdAndUserId).toHaveBeenCalledWith('mock-id', 'user-id');
     });
 
     it('throws when note does not exist', async () => {
-      noteRepository.findById.mockResolvedValue(null);
+      noteRepository.findByIdAndUserId.mockResolvedValue(null);
 
-      await expect(NoteService.findById('nonexistent-id')).rejects.toThrow(
+      await expect(NoteService.findById('nonexistent-id', 'user-id')).rejects.toThrow(
         'Note not found'
       );
     });
@@ -137,10 +146,10 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      noteRepository.findById.mockResolvedValue(existing);
+      noteRepository.findByIdAndUserId.mockResolvedValue(existing);
       noteRepository.updateWithVersion.mockResolvedValue(updated);
 
-      const result = await NoteService.update('mock-id', { title: 'New', version: 1 });
+      const result = await NoteService.update('mock-id', { title: 'New', version: 1 }, 'user-id');
 
       expect(noteRepository.updateWithVersion).toHaveBeenCalledWith('mock-id', {
         title: 'New',
@@ -160,17 +169,17 @@ describe('NoteService', () => {
         updated_at: new Date(),
       };
       const current = { ...existing, version: 7 };
-      noteRepository.findById.mockResolvedValue(existing);
+      noteRepository.findByIdAndUserId.mockResolvedValue(existing);
       noteRepository.updateWithVersion.mockResolvedValue(null);
-      noteRepository.findById.mockResolvedValueOnce(existing);
-      noteRepository.findById.mockResolvedValueOnce(current);
+      noteRepository.findByIdAndUserId.mockResolvedValueOnce(existing);
+      noteRepository.findByIdAndUserId.mockResolvedValueOnce(current);
 
       await expect(
-        NoteService.update('mock-id', { title: 'New', version: 3 })
+        NoteService.update('mock-id', { title: 'New', version: 3 }, 'user-id')
       ).rejects.toThrow(ConflictError);
 
       await expect(
-        NoteService.update('mock-id', { title: 'New', version: 3 })
+        NoteService.update('mock-id', { title: 'New', version: 3 }, 'user-id')
       ).rejects.toThrow('Note has been modified by another client');
     });
 
@@ -183,10 +192,10 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      noteRepository.findById.mockResolvedValue(existing);
+      noteRepository.findByIdAndUserId.mockResolvedValue(existing);
 
       await expect(
-        NoteService.update('mock-id', { title: 'New' })
+        NoteService.update('mock-id', { title: 'New' }, 'user-id')
       ).rejects.toThrow('Version is required for updates');
     });
 
@@ -199,18 +208,18 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      noteRepository.findById.mockResolvedValue(existing);
+      noteRepository.findByIdAndUserId.mockResolvedValue(existing);
 
       await expect(
-        NoteService.update('mock-id', { title: 'New', version: 'abc' })
+        NoteService.update('mock-id', { title: 'New', version: 'abc' }, 'user-id')
       ).rejects.toThrow('Invalid version number');
     });
 
     it('throws when updating a non-existent note', async () => {
-      noteRepository.findById.mockResolvedValue(null);
+      noteRepository.findByIdAndUserId.mockResolvedValue(null);
 
       await expect(
-        NoteService.update('nonexistent-id', { title: 'New', version: 1 })
+        NoteService.update('nonexistent-id', { title: 'New', version: 1 }, 'user-id')
       ).rejects.toThrow('Note not found');
     });
   });
@@ -225,18 +234,20 @@ describe('NoteService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      noteRepository.findById.mockResolvedValue(existing);
-      noteRepository.delete.mockResolvedValue(true);
+      noteRepository.findByIdAndUserId.mockResolvedValue(existing);
+      noteRepository.deleteByIdAndUserId.mockResolvedValue(true);
 
-      const result = await NoteService.delete('mock-id');
+      const result = await NoteService.delete('mock-id', 'user-id');
 
       expect(result).toBe(true);
+      expect(noteRepository.findByIdAndUserId).toHaveBeenCalledWith('mock-id', 'user-id');
+      expect(noteRepository.deleteByIdAndUserId).toHaveBeenCalledWith('mock-id', 'user-id');
     });
 
     it('throws when deleting a non-existent note', async () => {
-      noteRepository.findById.mockResolvedValue(null);
+      noteRepository.findByIdAndUserId.mockResolvedValue(null);
 
-      await expect(NoteService.delete('nonexistent-id')).rejects.toThrow(
+      await expect(NoteService.delete('nonexistent-id', 'user-id')).rejects.toThrow(
         'Note not found'
       );
     });

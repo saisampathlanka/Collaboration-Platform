@@ -23,8 +23,24 @@ const initDb = async () => {
     // updated_at: records when the note was created (trigger keeps this current on updates)
     // clock_timestamp() gives actual wall clock time (not transaction start time)
     await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp()
+      )
+    `);
+
+    // Migration: add user_id to existing notes tables that were created before Phase 2
+    await client.query(`
+      ALTER TABLE notes ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS notes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
         content TEXT NOT NULL DEFAULT '',
         version INTEGER NOT NULL DEFAULT 1,
@@ -33,15 +49,22 @@ const initDb = async () => {
       )
     `);
 
-    // Add version column to existing tables (idempotent migration)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
+        content TEXT NOT NULL DEFAULT '',
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT clock_timestamp()
+      )
+    `);
+
     await client.query(`
       ALTER TABLE notes ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1
     `);
 
-    // Define a reusable function that sets updated_at to the current timestamp
-    // This function will be called by a trigger before every UPDATE on the notes table
-    // NEW refers to the row about to be written; we overwrite its updated_at column
-    // clock_timestamp() gives actual wall clock time (not transaction start time)
     await client.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
@@ -52,10 +75,6 @@ const initDb = async () => {
       $$ language 'plpgsql';
     `);
 
-    // Attach the function as a trigger on the notes table
-    // DROP IF EXISTS ensures idempotency on repeated server starts
-    // BEFORE UPDATE: fires before the row is written back
-    // FOR EACH ROW: runs once per affected row (not once per statement)
     await client.query(`
       DROP TRIGGER IF EXISTS update_notes_updated_at ON notes;
       CREATE TRIGGER update_notes_updated_at
