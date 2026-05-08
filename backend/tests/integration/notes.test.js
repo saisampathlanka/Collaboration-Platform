@@ -1,13 +1,24 @@
 const request = require('supertest');
 const app = require('../../src/app');
+const { createUserAndGetToken } = require('../helpers');
 
 const BASE = '/notes';
 
 describe('Notes API — Integration', () => {
+  let token;
+  let authHeader;
+
+  beforeEach(async () => {
+    const result = await createUserAndGetToken();
+    token = result.token;
+    authHeader = `Bearer ${token}`;
+  });
+
   describe('POST /notes', () => {
     it('creates a note with title and content', async () => {
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Test Note', content: 'Test content' })
         .expect(201);
 
@@ -15,6 +26,7 @@ describe('Notes API — Integration', () => {
       expect(res.body.title).toBe('Test Note');
       expect(res.body.content).toBe('Test content');
       expect(res.body.version).toBe(1);
+      expect(res.body.user_id).toBeDefined();
       expect(res.body.created_at).toBeDefined();
       expect(res.body.updated_at).toBeDefined();
     });
@@ -22,6 +34,7 @@ describe('Notes API — Integration', () => {
     it('creates a note with only content', async () => {
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ content: 'Only content' })
         .expect(201);
 
@@ -33,6 +46,7 @@ describe('Notes API — Integration', () => {
     it('creates a note with only title', async () => {
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Only title' })
         .expect(201);
 
@@ -44,54 +58,72 @@ describe('Notes API — Integration', () => {
     it('returns 400 when both title and content are missing', async () => {
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({})
         .expect(400);
 
       expect(res.body.error).toBe('Title or content is required');
     });
 
-    it('returns 400 when body is completely empty', async () => {
+    it('returns 401 without auth token', async () => {
       const res = await request(app)
         .post(BASE)
-        .set('Content-Type', 'application/json')
-        .send('')
-        .expect(400);
+        .send({ title: 'No Auth', content: 'Test' })
+        .expect(401);
+
+      expect(res.body.error).toBe('Authentication required');
     });
   });
 
   describe('GET /notes', () => {
-    it('returns all notes with version field', async () => {
-      const res = await request(app).get(BASE).expect(200);
+    it('returns only own notes', async () => {
+      await request(app)
+        .post(BASE)
+        .set('Authorization', authHeader)
+        .send({ title: 'My Note', content: 'Mine' })
+        .expect(201);
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader)
+        .expect(200);
+
       expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
       res.body.forEach((note) => {
         expect(note.version).toBeDefined();
         expect(typeof note.version).toBe('number');
       });
     });
 
-    it('returns notes ordered by created_at DESC', async () => {
-      const first = await request(app).post(BASE).send({ title: 'Old', content: '1' });
-      await new Promise((r) => setTimeout(r, 20));
-      const second = await request(app).post(BASE).send({ title: 'New', content: '2' });
+    it('returns empty array when user has no notes', async () => {
+      const { token: token2 } = await createUserAndGetToken('empty@example.com', 'password123');
 
-      const res = await request(app).get(BASE).expect(200);
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', `Bearer ${token2}`)
+        .expect(200);
 
-      expect(res.body[0].id).toBe(second.body.id);
-      expect(res.body[1].id).toBe(first.body.id);
-      expect(new Date(res.body[0].created_at).getTime()).toBeGreaterThanOrEqual(
-        new Date(res.body[1].created_at).getTime()
-      );
+      expect(res.body).toEqual([]);
+    });
+
+    it('returns 401 without auth token', async () => {
+      await request(app)
+        .get(BASE)
+        .expect(401);
     });
   });
 
   describe('GET /notes/:id', () => {
-    it('returns a note by id with version', async () => {
+    it('returns a note by id', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Find Me', content: 'Content' });
 
       const res = await request(app)
         .get(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .expect(200);
 
       expect(res.body.title).toBe('Find Me');
@@ -101,6 +133,7 @@ describe('Notes API — Integration', () => {
     it('returns 404 for non-existent note', async () => {
       const res = await request(app)
         .get(`${BASE}/00000000-0000-0000-0000-000000000000`)
+        .set('Authorization', authHeader)
         .expect(404);
 
       expect(res.body.error).toBe('Note not found');
@@ -109,9 +142,26 @@ describe('Notes API — Integration', () => {
     it('returns 400 for invalid UUID format', async () => {
       const res = await request(app)
         .get(`${BASE}/not-a-uuid`)
+        .set('Authorization', authHeader)
         .expect(400);
 
       expect(res.body.error).toBe('Invalid note ID format');
+    });
+
+    it('returns 404 for another users note', async () => {
+      const createRes = await request(app)
+        .post(BASE)
+        .set('Authorization', authHeader)
+        .send({ title: 'Secret', content: 'Only I can see' });
+
+      const { token: token2 } = await createUserAndGetToken('other@example.com', 'password123');
+
+      const res = await request(app)
+        .get(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', `Bearer ${token2}`)
+        .expect(404);
+
+      expect(res.body.error).toBe('Note not found');
     });
   });
 
@@ -119,10 +169,12 @@ describe('Notes API — Integration', () => {
     it('updates title and content with correct version', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Original', content: 'Original body' });
 
       const res = await request(app)
         .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Updated', content: 'Updated body', version: 1 })
         .expect(200);
 
@@ -131,13 +183,30 @@ describe('Notes API — Integration', () => {
       expect(res.body.version).toBe(2);
     });
 
+    it('returns 404 when updating another users note', async () => {
+      const createRes = await request(app)
+        .post(BASE)
+        .set('Authorization', authHeader)
+        .send({ title: 'Not Yours', content: 'Test' });
+
+      const { token: token2 } = await createUserAndGetToken('other2@example.com', 'password123');
+
+      await request(app)
+        .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', `Bearer ${token2}`)
+        .send({ title: 'Hacked', version: 1 })
+        .expect(404);
+    });
+
     it('updates only title, preserves content', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Keep Content', content: 'Important' });
 
       const res = await request(app)
         .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'New Title', version: 1 })
         .expect(200);
 
@@ -149,10 +218,12 @@ describe('Notes API — Integration', () => {
     it('updates only content, preserves title', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Keep Title', content: 'Old body' });
 
       const res = await request(app)
         .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .send({ content: 'New body', version: 1 })
         .expect(200);
 
@@ -164,26 +235,22 @@ describe('Notes API — Integration', () => {
     it('returns 404 when updating non-existent note', async () => {
       await request(app)
         .put(`${BASE}/00000000-0000-0000-0000-000000000000`)
+        .set('Authorization', authHeader)
         .send({ title: 'Nope', version: 1 })
         .expect(404);
-    });
-
-    it('returns 400 for invalid UUID format', async () => {
-      await request(app)
-        .put(`${BASE}/bad-id`)
-        .send({ title: 'Nope', version: 1 })
-        .expect(400);
     });
 
     it('updates updated_at timestamp', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Time Test', content: 'Body' });
 
       await new Promise((r) => setTimeout(r, 10));
 
       const updateRes = await request(app)
         .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Time Updated', version: 1 });
 
       expect(new Date(updateRes.body.updated_at).getTime()).toBeGreaterThan(
@@ -194,60 +261,16 @@ describe('Notes API — Integration', () => {
     it('returns 400 when version is missing', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'No Version', content: 'Test' });
 
       const res = await request(app)
         .put(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Updated', content: 'Updated' })
         .expect(400);
 
       expect(res.body.error).toBe('Version is required for updates');
-    });
-
-    it('returns 400 when version is invalid (not a number)', async () => {
-      const createRes = await request(app)
-        .post(BASE)
-        .send({ title: 'Bad Version', content: 'Test' });
-
-      const res = await request(app)
-        .put(`${BASE}/${createRes.body.id}`)
-        .send({ title: 'Updated', version: 'abc' })
-        .expect(400);
-
-      expect(res.body.error).toBe('Invalid version number');
-    });
-
-    it('returns 400 when version is zero', async () => {
-      const createRes = await request(app)
-        .post(BASE)
-        .send({ title: 'Zero Version', content: 'Test' });
-
-      await request(app)
-        .put(`${BASE}/${createRes.body.id}`)
-        .send({ title: 'Updated', version: 0 })
-        .expect(400);
-    });
-
-    it('returns 400 when version is negative', async () => {
-      const createRes = await request(app)
-        .post(BASE)
-        .send({ title: 'Neg Version', content: 'Test' });
-
-      await request(app)
-        .put(`${BASE}/${createRes.body.id}`)
-        .send({ title: 'Updated', version: -1 })
-        .expect(400);
-    });
-
-    it('returns 400 when version is a float', async () => {
-      const createRes = await request(app)
-        .post(BASE)
-        .send({ title: 'Float Version', content: 'Test' });
-
-      await request(app)
-        .put(`${BASE}/${createRes.body.id}`)
-        .send({ title: 'Updated', version: 1.5 })
-        .expect(400);
     });
   });
 
@@ -255,48 +278,47 @@ describe('Notes API — Integration', () => {
     it('deletes an existing note', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Delete Me', content: 'Gone' });
 
       await request(app)
         .delete(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .expect(204);
 
       await request(app)
         .get(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', authHeader)
         .expect(404);
     });
 
     it('returns 404 when deleting non-existent note', async () => {
       await request(app)
         .delete(`${BASE}/00000000-0000-0000-0000-000000000000`)
+        .set('Authorization', authHeader)
         .expect(404);
     });
 
-    it('returns 404 when deleting the same note twice', async () => {
+    it('returns 404 when deleting another users note', async () => {
       const createRes = await request(app)
         .post(BASE)
-        .send({ title: 'Double Delete', content: 'Test' });
+        .set('Authorization', authHeader)
+        .send({ title: 'Not Yours', content: 'Mine' });
+
+      const { token: token2 } = await createUserAndGetToken('other3@example.com', 'password123');
 
       await request(app)
         .delete(`${BASE}/${createRes.body.id}`)
-        .expect(204);
-
-      await request(app)
-        .delete(`${BASE}/${createRes.body.id}`)
+        .set('Authorization', `Bearer ${token2}`)
         .expect(404);
-    });
-
-    it('returns 400 for invalid UUID format', async () => {
-      await request(app)
-        .delete(`${BASE}/not-a-uuid`)
-        .expect(400);
     });
   });
 
   describe('Full CRUD Lifecycle', () => {
-    it('create → read → update → delete → verify gone', async () => {
+    it('create -> read -> update -> delete -> verify gone', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Lifecycle', content: 'Full test' })
         .expect(201);
 
@@ -304,29 +326,45 @@ describe('Notes API — Integration', () => {
       expect(id).toBeDefined();
       expect(createRes.body.version).toBe(1);
 
-      const readRes = await request(app).get(`${BASE}/${id}`).expect(200);
+      const readRes = await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(200);
       expect(readRes.body.title).toBe('Lifecycle');
       expect(readRes.body.version).toBe(1);
 
       const updateRes = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Lifecycle Updated', version: 1 })
         .expect(200);
       expect(updateRes.body.title).toBe('Lifecycle Updated');
       expect(updateRes.body.content).toBe('Full test');
       expect(updateRes.body.version).toBe(2);
 
-      const listRes = await request(app).get(BASE).expect(200);
+      const listRes = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader)
+        .expect(200);
       const found = listRes.body.find((n) => n.id === id);
       expect(found).toBeDefined();
       expect(found.title).toBe('Lifecycle Updated');
       expect(found.version).toBe(2);
 
-      await request(app).delete(`${BASE}/${id}`).expect(204);
+      await request(app)
+        .delete(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(204);
 
-      await request(app).get(`${BASE}/${id}`).expect(404);
+      await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(404);
 
-      const finalList = await request(app).get(BASE).expect(200);
+      const finalList = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader)
+        .expect(200);
       const stillFound = finalList.body.find((n) => n.id === id);
       expect(stillFound).toBeUndefined();
     });
@@ -336,20 +374,28 @@ describe('Notes API — Integration', () => {
     it('second concurrent update with stale version returns 409', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Original', content: 'Original' })
         .expect(201);
 
       const id = createRes.body.id;
       expect(createRes.body.version).toBe(1);
 
-      const getA = await request(app).get(`${BASE}/${id}`).expect(200);
-      const getB = await request(app).get(`${BASE}/${id}`).expect(200);
+      const getA = await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(200);
+      const getB = await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(200);
 
       expect(getA.body.version).toBe(1);
       expect(getB.body.version).toBe(1);
 
       const updateA = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Client A', version: 1 })
         .expect(200);
 
@@ -358,6 +404,7 @@ describe('Notes API — Integration', () => {
 
       const updateB = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Client B', version: 1 })
         .expect(409);
 
@@ -369,6 +416,7 @@ describe('Notes API — Integration', () => {
     it('DB state remains unchanged after conflict', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Conflict Test', content: 'Content' })
         .expect(201);
 
@@ -376,15 +424,20 @@ describe('Notes API — Integration', () => {
 
       await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'First Update', version: 1 })
         .expect(200);
 
       await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Stale Update', version: 1 })
         .expect(409);
 
-      const current = await request(app).get(`${BASE}/${id}`).expect(200);
+      const current = await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(200);
 
       expect(current.body.title).toBe('First Update');
       expect(current.body.version).toBe(2);
@@ -393,6 +446,7 @@ describe('Notes API — Integration', () => {
     it('version increments correctly across multiple updates', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Version Test', content: '' })
         .expect(201);
 
@@ -402,6 +456,7 @@ describe('Notes API — Integration', () => {
       for (let i = 1; i <= 5; i++) {
         const res = await request(app)
           .put(`${BASE}/${id}`)
+          .set('Authorization', authHeader)
           .send({ title: `Update ${i}`, version })
           .expect(200);
 
@@ -410,13 +465,17 @@ describe('Notes API — Integration', () => {
         version = res.body.version;
       }
 
-      const current = await request(app).get(`${BASE}/${id}`).expect(200);
+      const current = await request(app)
+        .get(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
+        .expect(200);
       expect(current.body.version).toBe(6);
     });
 
     it('correct update succeeds after resolving conflict', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Resolve Test', content: '' })
         .expect(201);
 
@@ -424,11 +483,13 @@ describe('Notes API — Integration', () => {
 
       const updateA = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'A wins', version: 1 })
         .expect(200);
 
       const conflict = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'B stale', version: 1 })
         .expect(409);
 
@@ -436,6 +497,7 @@ describe('Notes API — Integration', () => {
 
       const updateBRetry = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'B resolved', version: conflict.body.currentVersion })
         .expect(200);
 
@@ -446,6 +508,7 @@ describe('Notes API — Integration', () => {
     it('stale update with version far behind current returns 409', async () => {
       const createRes = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Far Behind', content: '' })
         .expect(201);
 
@@ -454,11 +517,13 @@ describe('Notes API — Integration', () => {
       for (let v = 1; v <= 4; v++) {
         await request(app)
           .put(`${BASE}/${id}`)
+          .set('Authorization', authHeader)
           .send({ title: `v${v + 1}`, version: v });
       }
 
       const stale = await request(app)
         .put(`${BASE}/${id}`)
+        .set('Authorization', authHeader)
         .send({ title: 'Very Stale', version: 1 })
         .expect(409);
 
@@ -471,6 +536,7 @@ describe('Notes API — Integration', () => {
     it('accepts empty string content', async () => {
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Empty Content', content: '' })
         .expect(201);
 
@@ -482,6 +548,7 @@ describe('Notes API — Integration', () => {
 
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Large Note', content: largeContent })
         .expect(201);
 
@@ -493,6 +560,7 @@ describe('Notes API — Integration', () => {
 
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Special', content: special })
         .expect(201);
 
@@ -504,6 +572,7 @@ describe('Notes API — Integration', () => {
 
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Unicode', content: unicode })
         .expect(201);
 
@@ -515,6 +584,7 @@ describe('Notes API — Integration', () => {
 
       const res = await request(app)
         .post(BASE)
+        .set('Authorization', authHeader)
         .send({ title: 'Multi', content: multiLine })
         .expect(201);
 

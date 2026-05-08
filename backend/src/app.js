@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const noteRoutes = require('./routes/noteRoutes');
+const authRoutes = require('./routes/authRoutes');
 const requestLogger = require('./middleware/requestLogger');
 
 const app = express();
@@ -15,6 +16,7 @@ app.get('/', (req, res) => {
   res.json('welcome to collab platform');
 });
 
+app.use('/auth', authRoutes);
 app.use('/notes', noteRoutes);
 
 module.exports = app;
